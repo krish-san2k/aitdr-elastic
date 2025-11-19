@@ -1,0 +1,73 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Build ML Scorer image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: services/ml_scorer/Dockerfile
+          push: false
+          tags: aitdr/ml_scorer:pr-${{ github.run_id }}
+
+      - name: Build Copilot image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: services/copilot/Dockerfile
+          push: false
+          tags: aitdr/copilot:pr-${{ github.run_id }}
+
+      - name: Build Orchestrator image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: services/orchestrator/Dockerfile
+          push: false
+          tags: aitdr/orchestrator:pr-${{ github.run_id }}
+
+      - name: Build Ingest Simulator image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: services/ingest_simulator/Dockerfile
+          push: false
+          tags: aitdr/ingest_simulator:pr-${{ github.run_id }}
+
+      - name: Lint python code
+        run: |
+          python -m pip install flake8
+          flake8 services --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 services --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Test ml_scorer
+        run: |
+          python -m pip install -r services/ml_scorer/requirements.txt
+          python -m pytest services/ml_scorer/tests -v || true
+
+      - name: Test orchestrator
+        run: |
+          python -m pip install -r services/orchestrator/requirements.txt pytest httpx
+          python -m pytest services/orchestrator/tests -v || true

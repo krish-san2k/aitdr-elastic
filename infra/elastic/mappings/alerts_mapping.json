@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {"type": "date"},
+      "detector": {"type": "keyword"},
+      "description": {"type": "text"},
+      "severity": {"type": "float"},
+      "source_ip": {"type": "ip"},
+      "dest_ip": {"type": "ip"},
+      "embedding": {"type": "dense_vector", "dims": 1536},
+      "references": {"type": "keyword"}
+    }
+  }
+}

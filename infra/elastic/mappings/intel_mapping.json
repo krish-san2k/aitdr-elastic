@@ -1,0 +1,13 @@
+{
+  "mappings": {
+    "properties": {
+      "value": {"type": "keyword"},
+      "type": {"type": "keyword"},
+      "confidence": {"type": "float"},
+      "timestamp": {"type": "date"},
+      "source": {"type": "keyword"},
+      "tags": {"type": "keyword"},
+      "description": {"type": "text"}
+    }
+  }
+}

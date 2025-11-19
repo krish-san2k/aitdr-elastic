@@ -1,0 +1,21 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*.log
+    - /var/log/**/*.log
+  exclude_lines: ["^\\s*$", "^#"]
+  
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  bulk_max_size: 2048
+  worker: 2
+
+logging.level: info
+logging.to_stderr: true
