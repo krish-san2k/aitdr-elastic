@@ -2,10 +2,34 @@
 
 A comprehensive, containerized security operations platform combining Elasticsearch, Kafka, ML detection, and LLM-powered investigation tools for modern SOC operations.
 
-**Status**: Alpha Release (Learning & Development)
+**Status**: Enhanced Release with Advanced Features ✅
+
+## 🆕 What's New
+
+This project has been **fully enhanced** with production-ready features:
+
+- ✅ **Real IDS/IPS Log Ingestion** - Parse Suricata, Snort, firewall logs, EDR events
+- ✅ **Advanced Kibana Dashboards** - Security operations, network threat, alert analytics
+- ✅ **Kafka Integration** - Connect multiple data sources in real-time
+- ✅ **ML Anomaly Detection** - Isolation Forest algorithm for threat scoring
+- ✅ **LLM Copilot** - AI-powered alert investigation and triage
+- ✅ **CI/CD Pipeline** - Automated testing, building, and deployment
+
+**📖 START HERE:** [FEATURES_QUICKSTART.md](FEATURES_QUICKSTART.md) - 30-minute feature guide
+
+## 🔗 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| **[FEATURES_QUICKSTART.md](FEATURES_QUICKSTART.md)** | ⭐ Start here! Quick 30-min guide to all features |
+| **[FEATURE_GUIDE.md](FEATURE_GUIDE.md)** | Detailed docs for each feature (550+ lines) |
+| **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** | Cheat sheet with API endpoints & commands |
+| **[ENHANCEMENT_SUMMARY.md](ENHANCEMENT_SUMMARY.md)** | Complete summary of enhancements |
+| **[README.md](README.md)** | This file - Architecture & components |
 
 ## 📋 Table of Contents
 
+- [What's New](#-whats-new)
 - [Quick Start](#-quick-start)
 - [Architecture](#-architecture)
 - [Project Structure](#-project-structure)

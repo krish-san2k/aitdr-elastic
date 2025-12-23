@@ -1,4 +1,4 @@
-name: CD
+name: CD - Deploy to Production
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +31,8 @@ jobs:
           file: services/ml_scorer/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml_scorer:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml_scorer:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml-scorer:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml-scorer:${{ github.sha }}
 
       - name: Build and push Copilot
         uses: docker/build-push-action@v4
@@ -60,15 +61,23 @@ jobs:
           file: services/ingest_simulator/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest_simulator:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest_simulator:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest-simulator:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest-simulator:${{ github.sha }}
+
+      - name: Create deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images pushed to: ${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Set up SSH key
         uses: webfactory/ssh-agent@v0.8.1
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy via SSH
+      - name: Deploy via SSH (Optional - requires SSH configuration)
+        if: ${{ secrets.SSH_HOST != '' }}
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -81,4 +90,5 @@ jobs:
             docker-compose up -d --remove-orphans
             docker system prune -f
             echo "Deployment completed successfully"
+            docker-compose ps
           EOF

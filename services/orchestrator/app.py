@@ -232,15 +232,206 @@ async def get_stats():
             body={"query": {"term": {"processed": True}}}
         )
         
+        # Count by severity
+        severity_agg = es.search(
+            index="alerts",
+            body={
+                "size": 0,
+                "aggs": {
+                    "by_severity": {
+                        "range": {
+                            "field": "severity",
+                            "ranges": [
+                                {"to": 3.5},
+                                {"from": 3.5, "to": 6.5},
+                                {"from": 6.5, "to": 8.5},
+                                {"from": 8.5}
+                            ]
+                        }
+                    }
+                }
+            }
+        )
+        
         return {
             "total_alerts": total_alerts,
             "processed_alerts": processed["count"],
             "pending_alerts": total_alerts - processed["count"],
-            "es_connected": True
+            "es_connected": True,
+            "severity_distribution": severity_agg["aggregations"]["by_severity"]["buckets"]
         }
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         return {"error": str(e), "es_connected": False}
+
+
+class CopilotQuestion(BaseModel):
+    """Copilot question model"""
+    query: str
+    use_llm: bool = True
+
+
+class CopilotTriageRequest(BaseModel):
+    """Copilot triage request"""
+    alert_id: str
+
+
+@app.post("/copilot/ask")
+async def copilot_ask(req: CopilotQuestion):
+    """
+    Ask Copilot to answer a security question using Elasticsearch context
+    """
+    try:
+        if not es:
+            raise Exception("Elasticsearch not connected")
+        
+        # Search for relevant alerts
+        alert_query = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"description": {"query": req.query, "boost": 2}}},
+                        {"match": {"detector": req.query}},
+                        {"match": {"alert_signature": req.query}},
+                    ]
+                }
+            },
+            "size": 10
+        }
+        
+        alert_results = es.search(index="alerts*", body=alert_query)
+        alerts = [
+            {
+                "description": hit["_source"].get("description"),
+                "severity": hit["_source"].get("severity"),
+                "detector": hit["_source"].get("detector"),
+                "timestamp": hit["_source"].get("timestamp")
+            }
+            for hit in alert_results["hits"]["hits"]
+        ]
+        
+        # Search for relevant intelligence
+        intel_query = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"value": req.query}},
+                        {"match": {"description": req.query}},
+                        {"match": {"tags": req.query}}
+                    ]
+                }
+            },
+            "size": 5
+        }
+        
+        intel_results = es.search(index="intel*", body=intel_query)
+        intel = [
+            {
+                "value": hit["_source"].get("value"),
+                "type": hit["_source"].get("type"),
+                "description": hit["_source"].get("description")
+            }
+            for hit in intel_results["hits"]["hits"]
+        ]
+        
+        # Generate response
+        response = f"Query: {req.query}\n\n"
+        if alerts:
+            response += f"Found {len(alerts)} relevant alerts:\n"
+            for i, alert in enumerate(alerts[:5], 1):
+                response += f"  {i}. [{alert['severity']}] {alert['description']}\n"
+        else:
+            response += "No relevant alerts found in the system.\n"
+        
+        if intel:
+            response += f"\nFound {len(intel)} relevant intelligence items:\n"
+            for i, item in enumerate(intel[:5], 1):
+                response += f"  {i}. [{item['type']}] {item['value']}\n"
+        
+        logger.info(f"Copilot answered query: {req.query}")
+        
+        return {
+            "query": req.query,
+            "response": response,
+            "alerts_found": len(alerts),
+            "intel_found": len(intel),
+            "context": {
+                "alerts": alerts[:5],
+                "intel": intel[:5]
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in copilot ask: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/copilot/triage")
+async def copilot_triage(req: CopilotTriageRequest):
+    """
+    Get Copilot triage suggestion for an alert
+    """
+    try:
+        if not es:
+            raise Exception("Elasticsearch not connected")
+        
+        # Fetch alert
+        alert = es.get(index="alerts", id=req.alert_id)
+        alert_source = alert["_source"]
+        
+        # Search for similar alerts
+        similar_query = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"detector": alert_source.get("detector")}},
+                        {"match": {"description": alert_source.get("description")}},
+                    ]
+                }
+            },
+            "size": 5
+        }
+        
+        similar_results = es.search(index="alerts*", body=similar_query)
+        similar_alerts = similar_results["hits"]["hits"]
+        
+        # Build triage suggestion
+        severity = alert_source.get("severity", 0)
+        detector = alert_source.get("detector", "unknown")
+        
+        suggestion = f"Alert Analysis:\n"
+        suggestion += f"- Severity: {severity}/10\n"
+        suggestion += f"- Detector: {detector}\n"
+        suggestion += f"- Similar alerts in system: {len(similar_alerts)}\n\n"
+        
+        if severity >= 8:
+            suggestion += "RECOMMENDED ACTION: High-priority alert. Immediate investigation required.\n"
+            suggestion += "1. Isolate affected host/account\n"
+            suggestion += "2. Review detailed logs\n"
+            suggestion += "3. Escalate to IR team\n"
+        elif severity >= 6:
+            suggestion += "RECOMMENDED ACTION: Medium-priority alert. Investigate within 1 hour.\n"
+            suggestion += "1. Gather additional context\n"
+            suggestion += "2. Check for similar incidents\n"
+            suggestion += "3. Determine if false positive\n"
+        else:
+            suggestion += "RECOMMENDED ACTION: Low-priority alert. Review and monitor.\n"
+            suggestion += "1. Log for trend analysis\n"
+            suggestion += "2. Correlate with other events\n"
+        
+        logger.info(f"Copilot triaged alert: {req.alert_id}")
+        
+        return {
+            "alert_id": req.alert_id,
+            "description": alert_source.get("description"),
+            "severity": severity,
+            "triage_suggestion": suggestion,
+            "related_alerts": len(similar_alerts),
+            "ml_score": alert_source.get("ml_score", "N/A"),
+            "is_anomaly": alert_source.get("is_anomaly", False)
+        }
+    except Exception as e:
+        logger.error(f"Error in copilot triage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

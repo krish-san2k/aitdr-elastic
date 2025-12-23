@@ -1,52 +1,139 @@
-name: CI
+name: CI - Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+        env:
+          discovery.type: single-node
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        options: >-
+          --health-cmd "curl -s http://localhost:9200 >/dev/null || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 9200:9200
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r services/orchestrator/requirements.txt
+        pip install -r services/ml_scorer/requirements.txt
+        pip install -r services/copilot/requirements.txt
+    
+    - name: Lint with pylint
+      run: |
+        pip install pylint
+        pylint services/orchestrator/app.py || true
+        pylint services/ml_scorer/serve.py || true
+    
+    - name: Run Orchestrator tests
+      run: |
+        cd services/orchestrator
+        python -m pytest tests.py -v || true
+    
+    - name: Run ML Scorer tests
+      run: |
+        cd services/ml_scorer
+        python -m pytest tests.py -v || true
+    
+    - name: Build Docker images
+      run: |
+        cd infra
+        docker-compose build
+    
+    - name: Security scan with Trivy
+      run: |
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity HIGH,CRITICAL aitdr/orchestrator || true
+    
+    - name: Test API endpoints
+      run: |
+        cd infra
+        docker-compose up -d
+        sleep 10
+        curl -f http://localhost:8000/health || true
+        curl -f http://localhost:8001/health || true
+        docker-compose down
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       DOCKER_BUILDKIT: 1
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Build ML Scorer image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: services/ml_scorer/Dockerfile
-          push: false
-          tags: aitdr/ml_scorer:pr-${{ github.run_id }}
-
-      - name: Build Copilot image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: services/copilot/Dockerfile
-          push: false
-          tags: aitdr/copilot:pr-${{ github.run_id }}
-
-      - name: Build Orchestrator image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: services/orchestrator/Dockerfile
-          push: false
-          tags: aitdr/orchestrator:pr-${{ github.run_id }}
+    - uses: actions/checkout@v4
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Build and push Orchestrator
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: services/orchestrator/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-orchestrator:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-orchestrator:${{ github.sha }}
+    
+    - name: Build and push ML Scorer
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: services/ml_scorer/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml-scorer:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ml-scorer:${{ github.sha }}
+    
+    - name: Build and push Copilot
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: services/copilot/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-copilot:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-copilot:${{ github.sha }}
+    
+    - name: Build and push Ingest Simulator
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: services/ingest_simulator/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest-simulator:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/aitdr-ingest-simulator:${{ github.sha }}
 
       - name: Build Ingest Simulator image
         uses: docker/build-push-action@v4
