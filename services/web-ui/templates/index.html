@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AITDR Copilot - SOC Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🔒 AITDR Copilot</h1>
+                <p>AI-Powered Security Operations Center Assistant</p>
+            </div>
+            <div class="health-status">
+                <span id="healthIndicator" class="health-dot"></span>
+                <span id="healthText">Checking...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Question Input Section -->
+            <section class="question-section">
+                <h2>Ask a Question</h2>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="questionInput" 
+                        class="question-input"
+                        placeholder="Type your security question here..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button id="askButton" class="ask-button" onclick="askQuestion()">
+                        Ask Copilot
+                    </button>
+                </div>
+
+                <!-- Sample Questions -->
+                <div class="samples-section">
+                    <p class="samples-title">Or select from sample questions:</p>
+                    <div class="samples-grid" id="samplesGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section">
+                <div id="resultsContainer" class="results-container hidden">
+                    <!-- Query Info -->
+                    <div class="result-header">
+                        <h3 id="queryTitle">Query Results</h3>
+                        <button class="close-btn" onclick="clearResults()">×</button>
+                    </div>
+
+                    <!-- Metrics -->
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <span class="metric-label">Alerts Found</span>
+                            <span id="alertsMetric" class="metric-value">0</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Intel Items</span>
+                            <span id="intelMetric" class="metric-value">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Response Text -->
+                    <div class="response-section">
+                        <h4>Response</h4>
+                        <div id="responseText" class="response-text"></div>
+                    </div>
+
+                    <!-- Alerts Details -->
+                    <div id="alertsDetails" class="details-section hidden">
+                        <h4>Relevant Alerts</h4>
+                        <div id="alertsList" class="list-items"></div>
+                    </div>
+
+                    <!-- Intel Details -->
+                    <div id="intelDetails" class="details-section hidden">
+                        <h4>Relevant Intelligence</h4>
+                        <div id="intelList" class="list-items"></div>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loadingContainer" class="loading-container hidden">
+                    <div class="spinner"></div>
+                    <p>Analyzing your question...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <p>Ask a question to get started</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="errorContainer" class="error-container hidden">
+                    <div class="error-header">
+                        <h4>Error</h4>
+                        <button class="close-btn" onclick="clearError()">×</button>
+                    </div>
+                    <p id="errorText"></p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>AITDR Elastic Security Platform © 2026 | Powered by OpenAI GPT-4</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

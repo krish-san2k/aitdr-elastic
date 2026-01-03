@@ -26,14 +26,14 @@ except Exception as e:
     es = None
 
 # Initialize OpenAI (optional)
+openai = None
 try:
     if OPENAI_API_KEY:
-        import openai
-        openai.api_key = OPENAI_API_KEY
+        from openai import OpenAI
+        openai = OpenAI(api_key=OPENAI_API_KEY)
         logger.info("OpenAI API configured")
     else:
         logger.warning("OPENAI_API_KEY not set - using local responses only")
-        openai = None
 except Exception as e:
     logger.warning(f"OpenAI not configured: {e}")
     openai = None
@@ -164,8 +164,8 @@ def generate_response_llm(query: str, context: Dict[str, Any]) -> str:
             for doc in intel_docs[:5]:
                 context_text += f"- {doc.get('value', 'N/A')} (Type: {doc.get('type', 'N/A')})\n"
         
-        # Call OpenAI
-        response = openai.ChatCompletion.create(
+        # Call OpenAI with modern API (v1.0+)
+        response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
@@ -181,7 +181,7 @@ def generate_response_llm(query: str, context: Dict[str, Any]) -> str:
             max_tokens=500
         )
         
-        return response["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
     except Exception as e:
         logger.error(f"Error calling OpenAI: {e}")
         return generate_response_local(query, context)
